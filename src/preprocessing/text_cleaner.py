@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict 
 import logging
 from src.core.factories.cleaner_factory import get_cleaner_strategies
 from src.core.abstractions.text_cleaner_strategy import TextCleanerStrategy
@@ -28,13 +28,22 @@ class TextCleaner:
         strategy_names = [strategy.name for strategy in self.strategies]
         self.logger.info(f"TextCleaner initialized with strategies: {strategy_names}")
 
-    def clean(self, text: str) -> str:
-        """Clean single string text."""
+    def clean(self, text: str, metadata: Optional[Dict] = None) -> Dict:
+        """
+        Clean single string text and return with metadata.
+        
+        Args:
+            text (str): Raw input text
+            metadata (dict, optional): Associated metadata to preserve
+        
+        Returns:
+            dict: {"text": cleaned_text, "metadata": metadata}
+        """
         if not isinstance(text, str):
             raise TypeError("Input text must be a string")
         if not text.strip():
             self.logger.warning("Input text is empty or contains only whitespace")
-            return ""
+            return {"text": "", "metadata": metadata or {}}
 
         cleaned_text = text
         for strategy in self.strategies:
@@ -42,14 +51,18 @@ class TextCleaner:
                 cleaned_text = strategy.clean(cleaned_text)
             except Exception as e:
                 self.logger.error(f"Strategy '{strategy.name}' failed: {str(e)}")
-        return cleaned_text
+
+        return {"text": cleaned_text, "metadata": metadata or {}}
 
     def clean_with_metadata(self, page_data: Dict) -> Dict:
         """Clean text while preserving metadata."""
         if "text" not in page_data:
             raise ValueError("Input dictionary must contain 'text' key")
-        page_data["text"] = self.clean(page_data["text"])
-        return page_data
+
+        cleaned = self.clean(page_data["text"], metadata=page_data)
+        # Burada page_data'nın içindeki diğer metadata korunur
+        cleaned["metadata"] = {k: v for k, v in page_data.items() if k != "text"}
+        return {"text": cleaned["text"], **cleaned["metadata"]}
 
     def clean_batch_with_metadata(self, pages_data: List[Dict]) -> List[Dict]:
         """Clean multiple pages/chunks while preserving metadata."""
@@ -105,6 +118,7 @@ class TextCleaner:
             cleaned_text[:max_length] + ("..." if len(cleaned_text) > max_length else "")
         )
         return results
+
 
 # Example usage and testing
 if __name__ == "__main__":
