@@ -109,16 +109,99 @@ class ConfigParser:
                     "max_length": 512,
                     "batch_size": 32,
                     "normalize_embeddings": True,
+                    "language": "de",
+                    "text_cleaning": {
+                        "remove_special_chars": True,
+                        "normalize_whitespace": True,
+                        "lowercase": False
+                    }
+                },
             },
             "vectordb": {
                 "provider": "chroma",
                 "chroma": {
                     "persist_directory": "./data/chroma_db",
-                    "collection_name": "documents",
+                    "collection_name": "akademische_dokumente",
+                    "settings": {
+                        "anonymized_telemetry": False,
+                        "allow_reset": True
+                    },
+                    "metadata": {
+                        "description": "Sammlung akademischer Dokumente und Forschungsarbeiten",
+                        "language": "de",
+                        "domain": "academic",
+                        "version": "1.0"
+                    }
                 },
             },
-            "chunking": {"chunk_size": 512, "chunk_overlap": 50, "strategy": "recursive"},
-            "retrieval": {"top_k": 5, "score_threshold": 0.0},
-            "llm": {"provider": "ollama", "model_name": "llama2", "temperature": 0.1, "max_tokens": 512},
+            "chunking": {
+                "chunk_size": 512, 
+                "chunk_overlap": 50, 
+                "strategy": "recursive",
+                "language_specific": {
+                    "preserve_sentences": True,
+                    "respect_paragraphs": True,
+                    "handle_compound_words": True
+                },
+                "table_detection": {
+                    "enabled": True,
+                    "indicators": [
+                        "Tabelle", "Tab.", "Spalte", "Zeile",
+                        "siehe Tabelle", "in der Tabelle", "─", "│"
+                    ]
+                }
+            },
+            "text_cleaning": {
+                "german": {
+                    "remove_umlauts": False,
+                    "normalize_umlauts": True,
+                    "handle_compound_words": True,
+                    "preserve_case": True,
+                    "remove_stopwords": False,
+                    "custom_stopwords": ["bzw.", "etc.", "usw.", "z.B.", "d.h."]
+                }
+            },
+            "retrieval": {
+                "top_k": 5, 
+                "score_threshold": 0.0,
+                "min_similarity": 0.3,
+                "filters": {
+                    "language": "de",
+                    "content_type": ["text", "table", "figure"],
+                    "academic_domain": ["economics", "finance", "business"]
+                }
+            },
+            "llm": {
+                "provider": "ollama", 
+                "model_name": "llama2", 
+                "temperature": 0.1, 
+                "max_tokens": 512,
+                "language": "de",
+                "system_prompt": "Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet. Beantworte Fragen basierend auf den bereitgestellten Dokumenten. Verwende eine formelle, akademische Sprache."
+            },
+            "logging": {
+                "level": "INFO",
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "file": "./logs/academic_assistant.log",
+                "max_size": "10MB",
+                "backup_count": 5
+            },
+            "data": {
+                "input_directory": "./data/raw",
+                "processed_directory": "./data/processed", 
+                "output_directory": "./data/output",
+                "supported_formats": ["pdf", "txt", "docx"]
+            },
+            "performance": {
+                "batch_size": 100,
+                "max_workers": 4,
+                "cache_embeddings": True,
+                "cache_directory": "./cache/embeddings"
+            },
+            "testing": {
+                "test_data_directory": "./tests/data",
+                "mock_embeddings": True,
+                "test_collection_name": "test_collection",
+                "cleanup_after_tests": True
+            }
         }
-    }
