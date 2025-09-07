@@ -174,8 +174,8 @@ class DocumentChunker:
             text_splitter_config = self.config.get('text_splitter', {})
 
             if not text_splitter_config:
-                self.logger.info("No text_splitter configuration found, using default ChainedChunker")
-                return LogicalChunkingStrategy.ChainedChunker()  # <-- default olarak ChainedChunker
+                self.logger.warning("No text_splitter configuration found, using default header-based chunking")
+                return get_chunker('header_based')
 
             validate_chunking_config(text_splitter_config)
             strategy = create_chunker_from_config(text_splitter_config)
@@ -183,8 +183,8 @@ class DocumentChunker:
             return strategy
 
         except Exception as e:
-            self.logger.warning(f"Failed to create strategy from config: {e}. Using default ChainedChunker.")
-            return LogicalChunkingStrategy.ChainedChunker()
+            self.logger.warning(f"Failed to create strategy from config: {e}. Using default strategy.")
+            return get_chunker('header_based')
 
     def _validate_structured_data(self, structured_data: List[Dict[str, Any]]) -> None:
         if not structured_data:
@@ -265,25 +265,36 @@ class DocumentChunker:
 
 # Example usage and testing
 if __name__ == "__main__":
+    # Example usage with sample data
     sample_structured_data = [
-        {'text': 'Kapitel 1: Einführung in die Volkswirtschaftslehre', 'page_number': 1, 'font_size': 18.0, 'is_bold': True, 'element_type': 'header'},
-        {'text': 'Die Volkswirtschaftslehre untersucht wirtschaftliche Prozesse.', 'page_number': 1, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-        {'text': '1.1 Grundlegende Konzepte', 'page_number': 1, 'font_size': 16.0, 'is_bold': True, 'element_type': 'subheader'},
-        {'text': 'Das Bruttoinlandsprodukt (BIP) ist ein zentraler Indikator.', 'page_number': 2, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-        {'text': '1.2 Wirtschaftskreislauf', 'page_number': 2, 'font_size': 16.0, 'is_bold': True, 'element_type': 'subheader'},
-        {'text': 'Der Wirtschaftskreislauf zeigt, wie Geld und Güter zirkulieren.', 'page_number': 2, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-
-        {'text': 'Kapitel 2: Angebot und Nachfrage', 'page_number': 3, 'font_size': 18.0, 'is_bold': True, 'element_type': 'header'},
-        {'text': 'Angebot und Nachfrage bestimmen Preise auf Märkten.', 'page_number': 3, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-        {'text': '2.1 Angebotskurve', 'page_number': 3, 'font_size': 16.0, 'is_bold': True, 'element_type': 'subheader'},
-        {'text': 'Die Angebotskurve zeigt die angebotene Menge bei verschiedenen Preisen.', 'page_number': 4, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-        {'text': '2.2 Nachfragekurve', 'page_number': 4, 'font_size': 16.0, 'is_bold': True, 'element_type': 'subheader'},
-        {'text': 'Die Nachfragekurve zeigt die nachgefragte Menge bei verschiedenen Preisen.', 'page_number': 4, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-
-        {'text': 'Kapitel 3: Marktgleichgewicht', 'page_number': 5, 'font_size': 18.0, 'is_bold': True, 'element_type': 'header'},
-        {'text': 'Das Marktgleichgewicht tritt auf, wenn Angebot und Nachfrage gleich sind.', 'page_number': 5, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
-        {'text': '3.1 Preisbildung', 'page_number': 5, 'font_size': 16.0, 'is_bold': True, 'element_type': 'subheader'},
-        {'text': 'Preise passen sich an, bis der Markt im Gleichgewicht ist.', 'page_number': 6, 'font_size': 12.0, 'is_bold': False, 'element_type': 'paragraph'},
+        {
+            'text': 'Kapitel 1: Einführung in die Volkswirtschaftslehre',
+            'page_number': 1,
+            'font_size': 16.0,
+            'is_bold': True,
+            'element_type': 'header'
+        },
+        {
+            'text': 'Die Volkswirtschaftslehre beschäftigt sich mit der Analyse wirtschaftlicher Zusammenhänge und Prozesse. Sie untersucht, wie Gesellschaften ihre knappen Ressourcen verwenden, um Güter und Dienstleistungen zu produzieren und zu verteilen.',
+            'page_number': 1,
+            'font_size': 12.0,
+            'is_bold': False,
+            'element_type': 'paragraph'
+        },
+        {
+            'text': '1.1 Grundlegende Konzepte',
+            'page_number': 1,
+            'font_size': 14.0,
+            'is_bold': True,
+            'element_type': 'subheader'
+        },
+        {
+            'text': 'Das Bruttoinlandsprodukt (BIP) ist ein wichtiger Indikator für die wirtschaftliche Leistung eines Landes. Es misst den Gesamtwert aller Güter und Dienstleistungen, die innerhalb der Grenzen eines Landes in einem bestimmten Zeitraum produziert werden.',
+            'page_number': 2,
+            'font_size': 12.0,
+            'is_bold': False,
+            'element_type': 'paragraph'
+        }
     ]
     
     print("Testing DocumentChunker with sample German academic text...")
