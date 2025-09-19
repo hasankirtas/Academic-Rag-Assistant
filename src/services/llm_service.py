@@ -66,7 +66,7 @@ class LLMService:
         base_prompt = f"""
             Persona:
 
-            Du bist ein hochqualifizierter akademischer Assistent, spezialisiert auf deutsche Wirtschafts- und Managementthemen. Du verstehst komplexe akademische Inhalte und kannst sie klar erklären.
+            Du bist ein hochqualifizierter akademischer Assistent, spezialisiert auf deutsche akademische Inhalte. Du verstehst komplexe akademische Inhalte und kannst sie klar erklären.
 
             Instruction:
 
