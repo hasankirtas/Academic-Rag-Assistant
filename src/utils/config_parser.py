@@ -61,14 +61,16 @@ class ConfigParser:
             with open(self.config_path, "r", encoding="utf-8") as file:
                 raw_config = yaml.safe_load(file)
 
-            # Substitute env vars
-            self._config = self._substitute_env_vars(raw_config)
+            # Substitute env vars then normalize shape/compatibility for consumers
+            substituted = self._substitute_env_vars(raw_config)
+            self._config = self._normalize_config(substituted)
 
             logger.info(f"Config loaded: {self.config_path}")
 
         except Exception as e:
             logger.error(f"Error loading config: {str(e)}")
-            self._config = self._get_default_config()
+            # Even on failure, provide normalized defaults so consumers work
+            self._config = self._normalize_config(self._get_default_config())
 
     def _substitute_env_vars(self, config: Any) -> Any:
         if isinstance(config, dict):
@@ -99,12 +101,88 @@ class ConfigParser:
                 return default
         return current
 
+    def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize and backfill configuration so existing modules can rely on
+        stable keys without being changed.
+
+        - Ensure embedding.model_name and embedding.device exist (mirror nested provider if needed)
+        - Ensure retriever section exists with sensible defaults
+        - Ensure text_splitter section exists in factory-friendly shape
+        - Keep existing keys intact; only add missing compatibility keys
+        """
+        try:
+            cfg = dict(config or {})
+
+            # --- Embedding normalization ---
+            embedding_cfg = cfg.get("embedding", {}) or {}
+            provider = (embedding_cfg.get("provider") or "huggingface").lower()
+            provider_cfg = embedding_cfg.get(provider, {}) if isinstance(embedding_cfg.get(provider), dict) else {}
+
+            # Backfill top-level embedding keys used by QueryEmbeddingService
+            if "model_name" not in embedding_cfg and "model_name" in provider_cfg:
+                embedding_cfg["model_name"] = provider_cfg.get("model_name")
+            if "device" not in embedding_cfg and "device" in provider_cfg:
+                embedding_cfg["device"] = provider_cfg.get("device") or "auto"
+            # Reasonable defaults if still missing
+            embedding_cfg.setdefault("model_name", "intfloat/multilingual-e5-base")
+            embedding_cfg.setdefault("device", "auto")
+            cfg["embedding"] = embedding_cfg
+
+            # --- Retriever normalization ---
+            retriever_cfg = cfg.get("retriever") or {}
+            retriever_cfg.setdefault("vector_weight", 0.85)
+            retriever_cfg.setdefault("keyword_weight", 0.15)
+            retriever_cfg.setdefault("min_word_length", 3)
+            cfg["retriever"] = retriever_cfg
+
+            # --- text_splitter normalization for chunking ---
+            # DocumentChunker expects cfg["text_splitter"] shaped as
+            # { "strategy": <name>, "parameters": { ... } }
+            if "text_splitter" not in cfg or not isinstance(cfg.get("text_splitter"), dict):
+                # Provide factory-aligned defaults matching ChunkingFactory.get_chunker defaults
+                cfg["text_splitter"] = {
+                    "strategy": "chained",
+                    "parameters": {
+                        "header_config": {
+                            "max_chunk_size": 1500,
+                            "chunk_overlap": 200,
+                            "min_chunk_size": 100,
+                            "header_font_threshold": 14.0,
+                        },
+                        "semantic_config": {
+                            "max_chunk_size": 1200,
+                            "chunk_overlap": 150,
+                            "min_chunk_size": 200,
+                            "sentence_min_length": 10,
+                        },
+                    },
+                }
+
+            # --- LLM sane defaults ---
+            llm_cfg = cfg.get("llm") or {}
+            llm_cfg.setdefault("provider", "huggingface")
+            llm_cfg.setdefault("model_name", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+            llm_cfg.setdefault("temperature", 0.5)
+            llm_cfg.setdefault("max_tokens", 512)
+            llm_cfg.setdefault("language", "de-turkish")
+            # api_token intentionally left possibly None (set via UI); consumer will validate
+            cfg["llm"] = llm_cfg
+
+            return cfg
+        except Exception:
+            # On any normalization error, fall back to defaults
+            return self._get_default_config()
+
     def _get_default_config(self) -> Dict[str, Any]:
         return {
             "embedding": {
                 "provider": "huggingface",
+                # Top-level keys for consumers (mirrored from provider section)
+                "model_name": "intfloat/multilingual-e5-base",
+                "device": "auto",
                 "huggingface": {
-                    "model_name": "intfloat/multilingual-e5-large",
+                    "model_name": "intfloat/multilingual-e5-base",
                     "device": None,
                     "max_length": 512,
                     "batch_size": 32,
@@ -171,13 +249,38 @@ class ConfigParser:
                     "academic_domain": ["economics", "finance", "business"]
                 }
             },
+            # Defaults for the hybrid retriever consumer
+            "retriever": {
+                "vector_weight": 0.85,
+                "keyword_weight": 0.15,
+                "min_word_length": 3
+            },
             "llm": {
-                "provider": "ollama", 
-                "model_name": "llama2", 
-                "temperature": 0.1, 
+                "provider": "huggingface",
+                "model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+                "temperature": 0.5,
                 "max_tokens": 512,
-                "language": "de",
+                "language": "de-turkish",
+                "api_token": None,
                 "system_prompt": "Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet. Beantworte Fragen basierend auf den bereitgestellten Dokumenten. Verwende eine formelle, akademische Sprache."
+            },
+            # Back-compat: provide a factory-ready text_splitter for chunker
+            "text_splitter": {
+                "strategy": "chained",
+                "parameters": {
+                    "header_config": {
+                        "max_chunk_size": 1500,
+                        "chunk_overlap": 200,
+                        "min_chunk_size": 100,
+                        "header_font_threshold": 14.0
+                    },
+                    "semantic_config": {
+                        "max_chunk_size": 1200,
+                        "chunk_overlap": 150,
+                        "min_chunk_size": 200,
+                        "sentence_min_length": 10
+                    }
+                }
             },
             "logging": {
                 "level": "INFO",
@@ -205,3 +308,6 @@ class ConfigParser:
                 "cleanup_after_tests": True
             }
         }
+
+# Global config instance
+CONFIG = load_config()

@@ -31,7 +31,7 @@ class EmbeddingStrategy(ABC):
         pass
 
     @abstractmethod
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> List[float]: # ?
         """
         Converts a single query text into an embedding vector.
         

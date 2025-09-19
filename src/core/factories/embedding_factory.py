@@ -5,13 +5,12 @@ This module creates and returns the appropriate embedding strategy
 based on the settings in the config file. Implements the Factory Pattern.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 
 from src.implementations import embedding
 
 from ..abstractions.embedding_strategy import EmbeddingStrategy
-from ...implementations.embedding.huggingface_embedder import HuggingFaceEmbedder
 from ...utils.config_parser import ConfigParser
 from ...utils.logger import get_logger
 
@@ -27,7 +26,7 @@ class EmbeddingFactory:
 
     # canonical providers (can be extended)
     SUPPORTED_PROVIDERS = {
-        "huggingface": HuggingFaceEmbedder
+        "huggingface": None
     }
 
     # Alias mappings
@@ -108,8 +107,12 @@ class EmbeddingFactory:
             )
             provider_config["model_name"] = self.DEFAULT_HF_MODEL
 
-        # Instantiate strategy
-        strategy_class = self.SUPPORTED_PROVIDERS[provider]
+        # Instantiate strategy - import dynamically to avoid circular import
+        if provider == "huggingface":
+            from ...implementations.embedding.embedder import Embedder
+            strategy_class = Embedder
+        else:
+            strategy_class = self.SUPPORTED_PROVIDERS[provider]
 
         try:
             strategy = strategy_class(**provider_config)

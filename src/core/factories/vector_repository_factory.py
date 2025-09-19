@@ -8,6 +8,7 @@ import logging
 from enum import Enum
 
 from src.core.abstractions.vector_repository_strategy import VectorRepositoryStrategy
+from src.utils.config_parser import CONFIG
 
 
 class VectorDBType(Enum):
@@ -65,12 +66,23 @@ class VectorRepositoryFactory:
         """Create ChromaDB repository instance."""
         from src.implementations.vector_db.chroma_repository import ChromaRepository
         
-        persist_directory = kwargs.get('persist_directory', './chroma_db')
-        collection_name = kwargs.get('collection_name', 'academic_documents')
+        # Read defaults from global CONFIG if available
+        vcfg = (CONFIG.get('vectordb', {}) or {}).get('chroma', {})
+        persist_directory = kwargs.get('persist_directory', vcfg.get('persist_directory', './chroma_db'))
+        collection_name = kwargs.get('collection_name', vcfg.get('collection_name', 'academic_documents'))
+        settings = kwargs.get('settings', vcfg.get('settings', {
+            'anonymized_telemetry': False,
+            'allow_reset': True
+        }))
+        metadata = kwargs.get('metadata', vcfg.get('metadata', {
+            'description': 'Academic documents collection'
+        }))
         
         return ChromaRepository(
             persist_directory=persist_directory,
-            collection_name=collection_name
+            collection_name=collection_name,
+            settings=settings,
+            collection_metadata=metadata,
         )
 
     def _create_pinecone_repository(self, **kwargs) -> VectorRepositoryStrategy:

@@ -1,10 +1,10 @@
 import re
 from typing import List, Dict, Any
 from src.core.abstractions.chunking_strategy import LogicalChunkingStrategy
-from src.utils.logger import get_logger
+from src.utils.logger import setup_logger
 import spacy
 
-logger = get_logger(__name__)
+logger = setup_logger(__name__)
 nlp = spacy.load("de_core_news_sm")
 
 
@@ -14,7 +14,7 @@ class HeaderBasedChunker(LogicalChunkingStrategy):
     """
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.logger = get_logger(__name__)
+        self.logger = setup_logger(__name__)
         self.max_chunk_size = config.get('max_chunk_size', 1500)
         self.chunk_overlap = config.get('chunk_overlap', 200)
         self.min_chunk_size = config.get('min_chunk_size', 100)
@@ -78,7 +78,7 @@ class SemanticChunker(LogicalChunkingStrategy):
     """
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.logger = get_logger(__name__)
+        self.logger = setup_logger(__name__)
         self.max_chunk_size = config.get('max_chunk_size', 1200)
         self.chunk_overlap = config.get('chunk_overlap', 150)
         self.min_chunk_size = config.get('min_chunk_size', 200)

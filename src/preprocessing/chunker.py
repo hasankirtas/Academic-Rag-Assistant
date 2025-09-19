@@ -317,3 +317,8 @@ if __name__ == "__main__":
         print(f"Error during testing: {e}")
         import traceback
         traceback.print_exc()
+
+# Backward-compatible alias for legacy imports
+# Some modules may import `Chunker` from `src.preprocessing.chunker`
+# Provide alias to the current `DocumentChunker` implementation
+Chunker = DocumentChunker

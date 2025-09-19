@@ -12,9 +12,9 @@ from src.implementations.chunking.logical_chunking_strategies import (
     SemanticChunker,
     ChainedChunker
 )
-from src.utils.logger import get_logger
+from src.utils.logger import setup_logger
 
-logger = get_logger(__name__)
+logger = setup_logger(__name__)
 
 class ChunkingFactory:
     """
