@@ -1,0 +1,130 @@
+# Academic Assistant RAG Configuration
+# Konfiguration für den akademischen Assistenten RAG
+
+# Embedding Configuration
+embedding:
+  provider: "huggingface"
+  # Top-level convenience keys used by some modules
+  model_name: "intfloat/multilingual-e5-base"
+  device: "auto"  # auto-detect cpu/cuda in code
+  huggingface:
+    model_name: "intfloat/multilingual-e5-base"
+    device: null  # provider-specific override
+    max_length: 512
+    batch_size: 32
+    normalize_embeddings: true
+    # German-specific settings
+    language: "de"
+    text_cleaning:
+      remove_special_chars: true
+      normalize_whitespace: true
+      lowercase: false  # Keep German capitalization
+
+# Vector Database Configuration
+vectordb:
+  provider: "chroma"
+  chroma:
+    persist_directory: "./data/chroma_db"
+    collection_name: "akademische_dokumente"
+    settings:
+      anonymized_telemetry: false
+      allow_reset: true
+    # Collection metadata
+    metadata:
+      description: "Sammlung akademischer Dokumente und Forschungsarbeiten"
+      language: "de"
+      domain: "academic"
+      version: "1.0"
+
+# Chunking and text splitter configuration expected by factories/DocumentChunker
+text_splitter:
+  strategy: "chained"
+  parameters:
+    header_config:
+      max_chunk_size: 1500
+      chunk_overlap: 200
+      min_chunk_size: 100
+      header_font_threshold: 14.0
+    semantic_config:
+      max_chunk_size: 1200
+      chunk_overlap: 150
+      min_chunk_size: 200
+      sentence_min_length: 10
+
+# Text Cleaning Configuration
+text_cleaning:
+  german:
+    remove_umlauts: false
+    normalize_umlauts: true
+    handle_compound_words: true
+    preserve_case: true
+    remove_stopwords: false
+    custom_stopwords:
+      - "bzw."
+      - "etc."
+      - "usw."
+      - "z.B."
+      - "d.h."
+
+# Retrieval Configuration
+retrieval:
+  top_k: 5
+  score_threshold: 0.0
+  min_similarity: 0.3
+  # German content filtering
+  filters:
+    language: "de"
+    content_type: ["text", "table", "figure"]
+    academic_domain: ["economics", "finance", "business"]
+
+# Retriever Configuration
+retriever:
+  vector_weight: 0.85
+  keyword_weight: 0.15
+  min_word_length: 3
+
+# LLM Configuration
+llm:
+  provider: "huggingface"
+  model_name: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  temperature: 0.5
+  max_tokens: 512
+  # Language handling for dual DE/TR UX
+  language: "de"
+  api_token: null  # Set via Streamlit UI or env
+  system_prompt: |
+    Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet.
+    Beantworte Fragen basierend auf den bereitgestellten Dokumenten.
+    Verwende eine formelle, akademische Sprache.
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/academic_assistant.log"
+  max_size: "10MB"
+  backup_count: 5
+
+# Data Processing Configuration
+data:
+  input_directory: "./data/raw"
+  processed_directory: "./data/processed"
+  output_directory: "./data/output"
+  supported_formats:
+    - "pdf"
+    - "txt"
+    - "docx"
+  
+# Performance Configuration
+performance:
+  batch_size: 100
+  max_workers: 4
+  cache_embeddings: true
+  cache_directory: "./cache/embeddings"
+  
+# Testing Configuration
+testing:
+  test_data_directory: "./tests/data"
+  mock_embeddings: true
+  test_collection_name: "test_collection"
+  cleanup_after_tests: true
