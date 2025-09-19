@@ -1,7 +1,7 @@
 # test_hybrid_retriever.py
 import pytest
 from unittest.mock import MagicMock
-from src.implementations.retriever.hybrid_retriever import HybridRetriever, create_hybrid_retriever
+from src.rag.retriever import Retriever, create_hybrid_retriever
 from src.implementations.embedding.query_embedding import QueryEmbeddingService
 
 # Sample data
@@ -37,13 +37,13 @@ def mock_embedding_service():
     return mock_service
 
 def test_hybrid_retriever_initialization(mock_vector_db, mock_embedding_service):
-    retriever = HybridRetriever(mock_vector_db, mock_embedding_service)
-    assert retriever.vector_weight == 0.7
-    assert retriever.keyword_weight == 0.3
+    retriever = Retriever(mock_vector_db, mock_embedding_service)
+    assert retriever.vector_weight == 0.85
+    assert retriever.keyword_weight == 0.15
     assert retriever.query_embedding_service is not None
 
 def test_get_relevant_contexts(mock_vector_db, mock_embedding_service):
-    retriever = HybridRetriever(mock_vector_db, mock_embedding_service)
+    retriever = Retriever(mock_vector_db, mock_embedding_service)
     query_text = "Was ist das BIP?"
     contexts = retriever.get_relevant_contexts(query_text=query_text, k=2)
     assert len(contexts) == 2
@@ -54,13 +54,13 @@ def test_get_relevant_contexts(mock_vector_db, mock_embedding_service):
         assert "text" in context
 
 def test_update_weights(mock_vector_db, mock_embedding_service):
-    retriever = HybridRetriever(mock_vector_db, mock_embedding_service)
+    retriever = Retriever(mock_vector_db, mock_embedding_service)
     retriever.update_weights(vector_weight=0.5, keyword_weight=0.5)
     assert retriever.vector_weight == 0.5
     assert retriever.keyword_weight == 0.5
 
 def test_get_vector_results_only(mock_vector_db, mock_embedding_service):
-    retriever = HybridRetriever(mock_vector_db, mock_embedding_service)
+    retriever = Retriever(mock_vector_db, mock_embedding_service)
     vector_results = retriever.get_vector_results_only([0.1]*768, k=3)
     assert len(vector_results) == 3
     for result in vector_results:
@@ -73,7 +73,7 @@ def retriever_for_edge_cases():
     embedding_service.embed_text.return_value = [0.1] * 768
     vector_db = MagicMock()
     vector_db.search_by_embedding.return_value = []
-    return HybridRetriever(vector_db, embedding_service)
+    return Retriever(vector_db, embedding_service)
 
 def test_empty_query(retriever_for_edge_cases):
     results = retriever_for_edge_cases.get_relevant_contexts(query_text="", k=5)

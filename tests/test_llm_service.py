@@ -5,7 +5,7 @@ import os
 from unittest.mock import Mock, patch, MagicMock
 from typing import List, Dict, Any
 import time
-from src.implementations.llm.llm_service import LLMService, create_llm_service
+from src.services.llm_service import LLMService, create_llm_service
 
 class MockInferenceClient:
     """Mock HuggingFace InferenceClient for testing"""

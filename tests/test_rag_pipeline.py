@@ -47,7 +47,7 @@ class TestRAGPipeline:
         """RAG Pipeline fixture with mocked dependencies."""
         with patch('src.rag_pipeline.QueryEmbeddingService') as mock_emb_cls, \
              patch('src.rag_pipeline.VectorDatabaseService') as mock_vdb_cls, \
-             patch('src.rag_pipeline.HybridRetriever') as mock_ret_cls:
+             patch('src.rag_pipeline.Retriever') as mock_ret_cls:
             
             mock_emb_cls.return_value = mock_embedding_service
             mock_vdb_cls.return_value = mock_vector_db_service
@@ -133,7 +133,7 @@ class TestRAGPipeline:
         assert "vector_database" in info
         
         assert info["embedding_service"]["model"] == "test-model"
-        assert info["retriever"]["type"] == "HybridRetriever"
+        assert info["retriever"]["type"] == "Retriever"
         assert info["retriever"]["vector_weight"] == 0.7
         assert info["retriever"]["keyword_weight"] == 0.3
     
@@ -202,7 +202,7 @@ class TestFactoryFunctions:
         with pytest.raises(Exception, match="Creation failed"):
             create_rag_pipeline()
 
-    @patch('src.rag_pipeline.HybridRetriever')
+    @patch('src.rag_pipeline.Retriever')
     @patch('src.rag_pipeline.VectorDatabaseService')
     @patch('src.rag_pipeline.QueryEmbeddingService')
     def test_create_hybrid_retriever_success(self, mock_emb_cls, mock_vdb_cls, mock_ret_cls):
@@ -239,7 +239,7 @@ class TestIntegration:
 
     @patch('src.rag_pipeline.QueryEmbeddingService')
     @patch('src.rag_pipeline.VectorDatabaseService') 
-    @patch('src.rag_pipeline.HybridRetriever')
+    @patch('src.rag_pipeline.Retriever')
     def test_end_to_end_workflow(self, mock_ret_cls, mock_vdb_cls, mock_emb_cls):
         """Test end-to-end RAG pipeline workflow."""
         # Setup mocks
@@ -295,7 +295,7 @@ def test_query_with_different_k_values(k_value, expected_calls):
     """Test query method with different k values."""
     with patch('src.rag_pipeline.QueryEmbeddingService'), \
          patch('src.rag_pipeline.VectorDatabaseService'), \
-         patch('src.rag_pipeline.HybridRetriever') as mock_ret_cls:
+         patch('src.rag_pipeline.Retriever') as mock_ret_cls:
         
         mock_retriever = Mock()
         mock_retriever.get_relevant_contexts.return_value = []
@@ -317,7 +317,7 @@ def test_weight_updates(vector_w, keyword_w):
     """Test weight updates with different combinations."""
     with patch('src.rag_pipeline.QueryEmbeddingService'), \
          patch('src.rag_pipeline.VectorDatabaseService'), \
-         patch('src.rag_pipeline.HybridRetriever') as mock_ret_cls:
+         patch('src.rag_pipeline.Retriever') as mock_ret_cls:
         
         mock_retriever = Mock()
         mock_ret_cls.return_value = mock_retriever
