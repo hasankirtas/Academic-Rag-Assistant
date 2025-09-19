@@ -67,7 +67,7 @@ Academic Assistant Project/
 │  ├─ embeddings/
 │  ├─ processed/
 │  └─ raw/
-│     └─ sample_document.pdf
+│     └─ sample_document.pdf (used for the purposes of project development and testing, and was later removed.)
 ├─ src/
 │  ├─ core/
 │  │  ├─ abstractions/
@@ -187,11 +187,9 @@ cp env.example .env
 4) Process PDF → cleaning, embeddings, save to Chroma
 5) Ask questions from the “Chat” tab
 
-### Example Questions
+### Hint
 
-- Was ist das Bruttoinlandsprodukt und wie wird es berechnet?
-- Erklären Sie die wichtigsten Prinzipien des Managements.
-- Was sind die Unterschiede zwischen Mikro- und Makroökonomie?
+Try to ask questions using the concepts mentioned in the sources you have uploaded.
 
 ## 🧪 Tests
 
@@ -233,8 +231,8 @@ hybrid_score = vector_weight * vector_score + keyword_weight * keyword_score
 ### LLM Service
 
 - Hugging Face Inference API (Llama 3.1)
-- `generate_response()` and `stream_response()`
-- Prompt templates support German/Turkish
+- `generate_response()` for testing and `stream_response()` for UI
+- Prompt templates support German
 
 ### PDF Loader
 
