@@ -4,9 +4,12 @@
 # Embedding Configuration
 embedding:
   provider: "huggingface"
+  # Top-level convenience keys used by some modules
+  model_name: "intfloat/multilingual-e5-base"
+  device: "auto"  # auto-detect cpu/cuda in code
   huggingface:
-    model_name: "intfloat/multilingual-e5-large"
-    device: null  # Auto-detect
+    model_name: "intfloat/multilingual-e5-base"
+    device: null  # provider-specific override
     max_length: 512
     batch_size: 32
     normalize_embeddings: true
@@ -33,28 +36,20 @@ vectordb:
       domain: "academic"
       version: "1.0"
 
-# Document Processing Configuration
-chunking:
-  chunk_size: 512
-  chunk_overlap: 50
-  strategy: "recursive"
-  # German-specific chunking
-  language_specific:
-    preserve_sentences: true
-    respect_paragraphs: true
-    handle_compound_words: true
-  # Table detection for German content
-  table_detection:
-    enabled: true
-    indicators:
-      - "Tabelle"
-      - "Tab."
-      - "Spalte"
-      - "Zeile"
-      - "siehe Tabelle"
-      - "in der Tabelle"
-      - "─"
-      - "│"
+# Chunking and text splitter configuration expected by factories/DocumentChunker
+text_splitter:
+  strategy: "chained"
+  parameters:
+    header_config:
+      max_chunk_size: 1500
+      chunk_overlap: 200
+      min_chunk_size: 100
+      header_font_threshold: 14.0
+    semantic_config:
+      max_chunk_size: 1200
+      chunk_overlap: 150
+      min_chunk_size: 200
+      sentence_min_length: 10
 
 # Text Cleaning Configuration
 text_cleaning:
@@ -82,14 +77,21 @@ retrieval:
     content_type: ["text", "table", "figure"]
     academic_domain: ["economics", "finance", "business"]
 
+# Retriever Configuration
+retriever:
+  vector_weight: 0.85
+  keyword_weight: 0.15
+  min_word_length: 3
+
 # LLM Configuration
 llm:
-  provider: "ollama"
-  model_name: "llama2"
-  temperature: 0.1
+  provider: "huggingface"
+  model_name: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  temperature: 0.5
   max_tokens: 512
-  # German language settings
+  # Language handling for dual DE/TR UX
   language: "de"
+  api_token: null  # Set via Streamlit UI or env
   system_prompt: |
     Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet.
     Beantworte Fragen basierend auf den bereitgestellten Dokumenten.

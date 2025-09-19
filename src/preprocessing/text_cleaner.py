@@ -60,7 +60,6 @@ class TextCleaner:
             raise ValueError("Input dictionary must contain 'text' key")
 
         cleaned = self.clean(page_data["text"], metadata=page_data)
-        # Burada page_data'nın içindeki diğer metadata korunur
         cleaned["metadata"] = {k: v for k, v in page_data.items() if k != "text"}
         return {"text": cleaned["text"], **cleaned["metadata"]}
 

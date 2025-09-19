@@ -120,9 +120,9 @@ class PDFLoader:
 # Test
 if __name__ == "__main__":
     loader = PDFLoader()
-    documents = loader.load("data/raw/Makrooekonomie.pdf")
+    documents = loader.load("data/raw/sample_document.pdf")
 
-    first_page = documents[0]
+    first_page = documents[20]
     print(f"Chunk ID: {first_page['chunk_id']}")
     print(f"Source File: {first_page['source_file']}")
     print(f"Page {first_page['page_number']}:")

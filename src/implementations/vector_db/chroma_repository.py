@@ -21,7 +21,9 @@ class ChromaRepository(VectorRepositoryStrategy):
     def __init__(
         self,
         persist_directory: str,
-        collection_name: str = "academic_documents"
+        collection_name: str = "academic_documents",
+        settings: Optional[Dict[str, Any]] = None,
+        collection_metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize ChromaDB repository.
@@ -38,11 +40,12 @@ class ChromaRepository(VectorRepositoryStrategy):
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         
         # Initialize ChromaDB client
+        chroma_settings = settings or {"anonymized_telemetry": False, "allow_reset": True}
         self.client = chromadb.PersistentClient(
             path=str(self.persist_directory),
             settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
+                anonymized_telemetry=bool(chroma_settings.get("anonymized_telemetry", False)),
+                allow_reset=bool(chroma_settings.get("allow_reset", True)),
             )
         )
 
@@ -53,7 +56,7 @@ class ChromaRepository(VectorRepositoryStrategy):
         except Exception:
             self.collection = self.client.create_collection(
                 name=collection_name,
-                metadata={"description": "Academic documents collection"}
+                metadata=collection_metadata or {"description": "Academic documents collection"}
             )
             self.logger.info(f"Created new collection: {collection_name}")
 
