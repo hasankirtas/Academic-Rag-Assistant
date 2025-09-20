@@ -1044,6 +1044,11 @@ def main():
         st.header("📚 Processed PDFs")
         processed_pdfs = load_processed_pdfs()
         
+        # Ensure selectbox state can be reset safely before widget instantiation
+        if st.session_state.get("reset_processed_pdf_select", False):
+            st.session_state.pop("processed_pdf_select", None)
+            st.session_state.reset_processed_pdf_select = False
+        
         if processed_pdfs:
             pdf_names = [pdf_info['name'] for pdf_info in processed_pdfs.values()]
             selected_pdf = st.selectbox(
@@ -1123,8 +1128,8 @@ def main():
                 # Reset current PDF-related state and sidebar selection
                 st.session_state.pdf_processed = False
                 st.session_state.current_pdf = None
-                if "processed_pdf_select" in st.session_state:
-                    st.session_state.processed_pdf_select = DEFAULT_PDF_OPTION
+                # Defer widget reset to the next run before selectbox creation
+                st.session_state.reset_processed_pdf_select = True
                 st.rerun()
         
         with col2:
