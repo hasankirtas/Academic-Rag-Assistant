@@ -134,12 +134,35 @@ OUT --> UI
 - RAM: Minimum 4 GB
 - Disk: 2 GB free space
 
-### 1) With Poetry
+### 1) With Poetry (Recommended)
 
 ```bash
+# Clone the repository
 git clone <repo-url>
-cd Academic-Assistant-Project
+cd Academic-Rag-Assistant
+
+# Install dependencies (Poetry will create a virtual environment automatically)
+poetry lock
 poetry install
+```
+
+# Running the Streamlit App
+```bash
+# Make sure Python can find the `src` folder before running the app
+
+# Git Bash / Linux / macOS
+export PYTHONPATH=$(pwd)
+poetry run streamlit run src/inference/streamlit_ui.py
+
+# PowerShell (Windows)
+$env:PYTHONPATH=(Get-Location)
+poetry run streamlit run src/inference/streamlit_ui.py
+
+# CMD (Windows)
+set PYTHONPATH=%cd%
+poetry run streamlit run src/inference/streamlit_ui.py
+
+# The app will be available at: http://localhost:8501
 ```
 
 ### 2) With Docker
