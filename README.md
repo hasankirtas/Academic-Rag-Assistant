@@ -146,7 +146,7 @@ poetry lock
 poetry install
 ```
 
-# Running the Streamlit App
+#### Running the Streamlit App
 ```bash
 # Make sure Python can find the `src` folder before running the app
 
