@@ -22,7 +22,7 @@ Throughout the process, I focused on:
 
 This project also reinforced an important insight: building AI systems is not solely about producing models or predictions. It requires deliberate engineering, strategic thinking, and adherence to professional standards at every stage. 
 
-I am particularly grateful to the resources provided by **O’Reilly Media** and **Packt Media**, which offered invaluable guidance and knowledge, helping me bridge the gap between theoretical understanding and practical, production-ready implementation.
+I used a variety of trusted technical resources on AI and software engineering to guide my learning and the development of this project, bridging the gap between theoretical understanding and practical, production-ready implementation.
 
 By undertaking this project, I not only gained technical expertise but also developed a mindset aligned with **real-world AI system development**, preparing me for future challenges in both research and industry contexts.
 
@@ -128,7 +128,7 @@ OUT --> UI
 
 ## ⚙️ Setup
 
-### System Requirements (Recommended)
+### System Requirements
 
 - Python 3.8+
 - RAM: Minimum 4 GB
