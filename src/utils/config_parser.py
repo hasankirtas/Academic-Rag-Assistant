@@ -201,7 +201,6 @@ class ConfigParser:
                     "persist_directory": "./data/chroma_db",
                     "collection_name": "akademische_dokumente",
                     "settings": {
-                        "anonymized_telemetry": False,
                         "allow_reset": True
                     },
                     "metadata": {
