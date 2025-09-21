@@ -40,11 +40,10 @@ class ChromaRepository(VectorRepositoryStrategy):
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         
         # Initialize ChromaDB client
-        chroma_settings = settings or {"anonymized_telemetry": False, "allow_reset": True}
+        chroma_settings = settings or {"allow_reset": True}
         self.client = chromadb.PersistentClient(
             path=str(self.persist_directory),
             settings=Settings(
-                anonymized_telemetry=bool(chroma_settings.get("anonymized_telemetry", False)),
                 allow_reset=bool(chroma_settings.get("allow_reset", True)),
             )
         )
