@@ -71,7 +71,6 @@ class VectorRepositoryFactory:
         persist_directory = kwargs.get('persist_directory', vcfg.get('persist_directory', './chroma_db'))
         collection_name = kwargs.get('collection_name', vcfg.get('collection_name', 'academic_documents'))
         settings = kwargs.get('settings', vcfg.get('settings', {
-            'anonymized_telemetry': False,
             'allow_reset': True
         }))
         metadata = kwargs.get('metadata', vcfg.get('metadata', {
