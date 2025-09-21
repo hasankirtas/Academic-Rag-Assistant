@@ -27,7 +27,6 @@ vectordb:
     persist_directory: "./data/chroma_db"
     collection_name: "akademische_dokumente"
     settings:
-      anonymized_telemetry: false
       allow_reset: true
     # Collection metadata
     metadata:
