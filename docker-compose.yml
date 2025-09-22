@@ -26,8 +26,8 @@ services:
       # Application configuration
       - LOG_LEVEL=INFO
       
-      # Hugging Face token (optional - can be entered in UI)
-      # - HF_TOKEN=${HF_TOKEN:-}
+      # OpenAI API key (optional - can be entered in UI)
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       
     volumes:
       # Persistent data storage

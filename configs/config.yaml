@@ -84,10 +84,10 @@ retriever:
 
 # LLM Configuration
 llm:
-  provider: "huggingface"
-  model_name: "meta-llama/Meta-Llama-3.1-8B-Instruct"
-  temperature: 0.5
-  max_tokens: 512
+  provider: "openai"
+  model_name: "gpt-5-mini"
+  # Note: GPT-5-mini only supports temperature=1 (default), so temperature parameter is not used
+  max_tokens: 1024  # Increased for longer, more detailed responses
   # Language handling for dual DE/TR UX
   language: "de"
   api_token: null  # Set via Streamlit UI or env

@@ -1,13 +1,14 @@
 """
-LLM Service for RAG System (Cloud-based by default)
+LLM Service for RAG System (OpenAI GPT-5-mini)
 
-Provides text generation using Hugging Face Inference API (Llama 3.1).
+Provides text generation using OpenAI API (GPT-5-mini).
 """
 
 from typing import List, Dict, Any, Optional, Generator
 import time
 import logging
-import huggingface_hub as hf
+import os
+from openai import OpenAI
 import src.utils.config_parser as config_module
 
 from src.utils.logger import setup_logger
@@ -18,7 +19,7 @@ logger = setup_logger(__name__)
 
 class LLMService:
     """
-    Service for text generation using Hugging Face Inference API (Llama 3.1).
+    Service for text generation using OpenAI API (GPT-5-mini).
     """
 
     def __init__(self, model_name: Optional[str] = None):
@@ -26,19 +27,24 @@ class LLMService:
         llm_config = config_module.CONFIG.get("llm", {})
 
         self.model_name = model_name or llm_config.get(
-            "model_name", "meta-llama/Meta-Llama-3.1-8B-Instruct"
+            "model_name", "gpt-5-mini"
         )
-        self.temperature = llm_config.get("temperature", 0.5)
+        # GPT-5-mini only supports temperature=1 (default), so we don't use this parameter
+        self.temperature = llm_config.get("temperature", 1.0)  # Not used in API calls
         self.max_tokens = llm_config.get("max_tokens", 512)
-        self.language = llm_config.get("language", "de-turkish")
+        self.language = llm_config.get("language", "de")
 
+        # Get API key from config or environment
         api_token = llm_config.get("api_token", None)
         if not api_token:
-            raise ValueError("HF API Token is missing")
+            api_token = os.getenv("OPENAI_API_KEY")
+        
+        if not api_token:
+            raise ValueError("OpenAI API Key is missing. Please set OPENAI_API_KEY environment variable or configure in config.yaml")
 
-        # Use module attribute so patch('huggingface_hub.InferenceClient', ...) works
-        self.client = hf.InferenceClient(model=self.model_name, token=api_token)
-        logger.info(f"Initialized cloud LLM service with {self.model_name}")
+        # Initialize OpenAI client
+        self.client = OpenAI(api_key=api_token)
+        logger.info(f"Initialized OpenAI LLM service with {self.model_name}")
 
     def _build_prompt(self, query: str, contexts: List[Dict]) -> str:
         """
@@ -170,77 +176,62 @@ class LLMService:
     def build_prompt(self, query: str, contexts: List[Dict]) -> str:
         return self._build_prompt(query, contexts)
 
-    def _generate_answer(self, prompt: str) -> str: # FOR TESTS
-        try:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
-            
-            response = self.client.chat_completion(
-                messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-            )
-            
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            logger.error(f"Error in conversational generation: {str(e)}")
-            return "Entschuldigung, es gab einen Fehler bei der Antwortgenerierung."
-
-    def _generate_answer_stream(self, prompt: str) -> Generator[str, None, None]: # FOR STREAMLIT UI
+    def _call_openai_api(self, prompt: str, stream: bool = False):
         """
-        Stream tokens from Hugging Face Inference API as they arrive.
-
-        Yields incremental text chunks suitable for UI streaming.
+        Unified method to call OpenAI API with proper error handling.
+        
+        Args:
+            prompt: The formatted prompt to send to the model
+            stream: Whether to stream the response
+            
+        Returns:
+            OpenAI API response or stream generator
         """
         try:
             messages = [
+                {"role": "system", "content": "Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet. Beantworte Fragen basierend auf den bereitgestellten Dokumenten. Verwende eine formelle, akademische Sprache."},
                 {"role": "user", "content": prompt}
             ]
-
-            stream = self.client.chat_completion(
+            
+            # GPT-5-mini only supports temperature=1 (default)
+            # Remove temperature parameter to use default value
+            response = self.client.chat.completions.create(
+                model=self.model_name,
                 messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                stream=True,
+                max_completion_tokens=self.max_tokens,
+                stream=stream,
             )
-
-            for event in stream:
-                try:
-                    # Newer huggingface_hub returns objects with choices[0].delta.content
-                    if hasattr(event, "choices") and event.choices:
-                        delta = getattr(event.choices[0], "delta", None)
-                        if delta is not None:
-                            content_piece = getattr(delta, "content", None)
-                            if content_piece:
-                                yield content_piece
-                                continue
-                        # Fallback to message content
-                        message = getattr(event.choices[0], "message", None)
-                        if message is not None:
-                            content_piece = getattr(message, "content", None)
-                            if content_piece:
-                                yield content_piece
-                                continue
-                    # Some versions yield plain dicts
-                    if isinstance(event, dict):
-                        choices = event.get("choices") or []
-                        if choices:
-                            delta = choices[0].get("delta") or {}
-                            content_piece = delta.get("content") or choices[0].get("text")
-                            if content_piece:
-                                yield content_piece
-                except Exception:
-                    # Ignore malformed incremental events
-                    continue
+            
+            return response
+            
         except Exception as e:
-            logger.error(f"Streaming generation error: {str(e)}")
-            yield ""
+            logger.error(f"OpenAI API call failed: {str(e)}")
+            if stream:
+                return iter([])  # Return empty generator for streaming
+            else:
+                raise e
 
-    def generate_response(self, query: str, contexts: List[Dict] = None) -> Dict[str, Any]: # FOR TEST
+    def generate_response(self, query: str, contexts: List[Dict] = None) -> Dict[str, Any]:
+        """
+        Generate a complete response for the given query and contexts.
+        
+        Args:
+            query: User query
+            contexts: List of context dictionaries with 'text' and 'hybrid_score'
+            
+        Returns:
+            Dictionary containing answer, metadata, and timing information
+        """
         start = time.time()
         prompt = self._build_prompt(query, contexts or [])
-        answer = self._generate_answer(prompt)
+        
+        try:
+            response = self._call_openai_api(prompt, stream=False)
+            answer = response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}")
+            answer = "Entschuldigung, es gab einen Fehler bei der Antwortgenerierung."
+        
         elapsed = (time.time() - start) * 1000
 
         return {
@@ -251,14 +242,27 @@ class LLMService:
             "contexts_used": len(contexts) if contexts else 0,
         }
 
-    def stream_response(self, query: str, contexts: List[Dict] = None) -> Generator[str, None, None]:  # FOR STREAMLIT UI
+    def stream_response(self, query: str, contexts: List[Dict] = None) -> Generator[str, None, None]:
         """
-        Public streaming API that yields answer chunks for the given query. FOR TESTING
+        Stream response tokens for the given query and contexts.
+        
+        Args:
+            query: User query
+            contexts: List of context dictionaries with 'text' and 'hybrid_score'
+            
+        Yields:
+            String chunks of the response as they arrive
         """
         prompt = self._build_prompt(query, contexts or [])
-        for chunk in self._generate_answer_stream(prompt):
-            if chunk:
-                yield chunk
+        
+        try:
+            stream = self._call_openai_api(prompt, stream=True)
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            logger.error(f"Error streaming response: {str(e)}")
+            yield "Entschuldigung, es gab einen Fehler bei der Antwortgenerierung."
 
     def get_model_info(self) -> Dict[str, Any]:
         return {
