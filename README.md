@@ -26,6 +26,14 @@ I used a variety of trusted technical resources on AI and software engineering t
 
 By undertaking this project, I not only gained technical expertise but also developed a mindset aligned with **real-world AI system development**, preparing me for future challenges in both research and industry contexts.
 
+## 🔄 Recent Updates
+
+**Version 2.0 - OpenAI Integration**
+- Migrated from Hugging Face Inference API to OpenAI GPT-5-mini
+- Improved reliability and response quality
+- Simplified API key management
+- Enhanced error handling and validation
+
 ## 🎯 Why This Project?
 
 - **Fast access to academic knowledge**: Process hundreds of PDF pages in minutes
@@ -38,7 +46,7 @@ By undertaking this project, I not only gained technical expertise but also deve
 - **German-focused text cleaning** (OCR errors, ligatures, whitespace normalization, bullet handling, etc.)
 - **Persistent vector DB**: Local storage with `Chroma`
 - **Hybrid retrieval**: Vector similarity + keyword score
-- **LLM integration**: Hugging Face Inference API (Llama 3.1)
+- **LLM integration**: OpenAI API (GPT-5-mini)
 - **Streamlit UI**: PDF upload, processing, chat, and context previews
 - **Configuration management**: `configs/config.yaml`
 - **Docker/Compose support**: Easy setup and run
@@ -200,15 +208,15 @@ cp env.example .env
 # Edit .env if you need custom configurations
 ```
 
-**Note**: Hugging Face API token is entered directly in the Streamlit UI - no environment setup required!
+**Note**: OpenAI API key is entered directly in the Streamlit UI - no environment setup required!
 
 ## ▶️ Usage
 
-1) Get a Hugging Face API Token (see Hugging Face Tokens)
-2) Enter the token in the Streamlit UI
+1) Get an OpenAI API Key (see OpenAI Platform)
+2) Enter the key in the Streamlit UI
 3) Upload a PDF (≤ 10 MB, German text-based PDF)
 4) Process PDF → cleaning, embeddings, save to Chroma
-5) Ask questions from the “Chat” tab
+5) Ask questions from the "Chat" tab
 
 ### Hint
 
@@ -253,7 +261,7 @@ hybrid_score = vector_weight * vector_score + keyword_weight * keyword_score
 
 ### LLM Service
 
-- Hugging Face Inference API (Llama 3.1)
+- OpenAI API (GPT-5-mini)
 - `generate_response()` for testing and `stream_response()` for UI
 - Prompt templates support German
 
@@ -270,7 +278,7 @@ hybrid_score = vector_weight * vector_score + keyword_weight * keyword_score
 - Use text-based PDFs (not scanned images)
 
 **Embedding error**
-- Verify your Hugging Face token is valid
+- Verify your OpenAI API key is valid
 - Check your internet connection
 
 **Chroma DB error**

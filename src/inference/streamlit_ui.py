@@ -13,12 +13,7 @@ from pathlib import Path
 import hashlib
 import json
 import os
-from huggingface_hub import HfApi
-try:
-    from transformers import AutoTokenizer, AutoModel
-except Exception:
-    AutoTokenizer = None
-    AutoModel = None
+import openai
 from requests.exceptions import HTTPError
 import requests
 
@@ -97,35 +92,24 @@ TRANSLATIONS = {
     }
 }
 
-def validate_hf_token(token: str) -> bool:
+def validate_openai_key(api_key: str) -> bool:
     """
-    Check if the Hugging Face API token is valid by making a simple API request.
+    Check if the OpenAI API key is valid by making a simple API request.
     
     Args:
-        token: Hugging Face API token
+        api_key: OpenAI API key
         
     Returns:
-        bool: True if token is valid, False otherwise
+        bool: True if key is valid, False otherwise
     """
     try:
-        # Method 1: Try using HfApi
-        api = HfApi()
-        # Use whoami endpoint to validate token
-        result = api.whoami(token=token)
-        return result is not None
+        client = openai.OpenAI(api_key=api_key)
+        # Try to list models to validate the key
+        models = client.models.list()
+        return models is not None
     except Exception as e:
-        try:
-            # Method 2: Direct API call as fallback
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get(
-                "https://huggingface.co/api/whoami",
-                headers=headers,
-                timeout=10
-            )
-            return response.status_code == 200
-        except Exception as fallback_error:
-            logger.warning(f"Token validation failed: {str(e)}, Fallback error: {str(fallback_error)}")
-            return False
+        logger.warning(f"OpenAI API key validation failed: {str(e)}")
+        return False
 
 def on_language_change():
     """
@@ -190,13 +174,13 @@ def is_pdf_processed(file_content: bytes) -> Optional[Dict]:
 # Helper functions removed - using RAG pipeline's PDF processing instead
 
 @st.cache_resource(show_spinner=False)
-def get_rag_pipeline(hf_token: str = None):
+def get_rag_pipeline(openai_key: str = None):
     """Cached RAG pipeline initialization."""
     try:
-        # Update config with HF token if provided
-        if hf_token:
+        # Update config with OpenAI key if provided
+        if openai_key:
             import src.utils.config_parser as config_module
-            config_module.CONFIG["llm"]["api_token"] = hf_token
+            config_module.CONFIG["llm"]["api_token"] = openai_key
         return create_rag_pipeline()
     except Exception as e:
         logger.error(f"Failed to create RAG pipeline: {str(e)}")
@@ -364,34 +348,34 @@ def validate_pdf(uploaded_file) -> tuple[bool, str]:
         return False, get_text("processing_error")
 
 def initialize_rag_pipeline() -> Optional[RAGPipeline]:
-    """Initialize RAG pipeline with caching and error handling, with HF token validation."""
+    """Initialize RAG pipeline with caching and error handling, with OpenAI key validation."""
     try:
-        hf_token = st.session_state.get('hf_token', '')
+        openai_key = st.session_state.get('openai_key', '')
 
-        # If no token is provided, warn the user
-        if not hf_token:
-            st.warning("⚠️ Please enter your Hugging Face API token in the sidebar")
+        # If no key is provided, warn the user
+        if not openai_key:
+            st.warning("⚠️ Please enter your OpenAI API key in the sidebar")
             return None
 
-        # Validate the token if not already validated
-        if not st.session_state.get('hf_token_validated', False):
-            if validate_hf_token(hf_token):
-                st.session_state.hf_token_validated = True
-                st.sidebar.success("✅ API Token validated")
+        # Validate the key if not already validated
+        if not st.session_state.get('openai_key_validated', False):
+            if validate_openai_key(openai_key):
+                st.session_state.openai_key_validated = True
+                st.sidebar.success("✅ API Key validated")
             else:
-                st.session_state.hf_token_validated = False
-                st.sidebar.error("❌ Invalid Hugging Face API Token")
-                return None  # Do not initialize pipeline if token is invalid
+                st.session_state.openai_key_validated = False
+                st.sidebar.error("❌ Invalid OpenAI API Key")
+                return None  # Do not initialize pipeline if key is invalid
 
-        # Check if pipeline needs to be recreated (token changed)
-        current_token = st.session_state.get('current_hf_token', '')
-        if 'rag_pipeline' not in st.session_state or current_token != hf_token:
+        # Check if pipeline needs to be recreated (key changed)
+        current_key = st.session_state.get('current_openai_key', '')
+        if 'rag_pipeline' not in st.session_state or current_key != openai_key:
             with st.spinner("Initializing RAG pipeline..."):
-                st.session_state.rag_pipeline = get_rag_pipeline(hf_token)
-                st.session_state.current_hf_token = hf_token
+                st.session_state.rag_pipeline = get_rag_pipeline(openai_key)
+                st.session_state.current_openai_key = openai_key
 
-        # Ensure LLM service exists (and refresh on token change)
-        if 'llm_service' not in st.session_state or current_token != hf_token:
+        # Ensure LLM service exists (and refresh on key change)
+        if 'llm_service' not in st.session_state or current_key != openai_key:
             try:
                 st.session_state.llm_service = create_llm_service()
             except Exception as e:
@@ -405,53 +389,13 @@ def initialize_rag_pipeline() -> Optional[RAGPipeline]:
         logger.error(f"Failed to initialize RAG pipeline: {str(e)}")
         return None
 
-def _is_model_installed(model_name: str) -> bool:
-    """Check if a Hugging Face model is available locally."""
-    try:
-        if AutoTokenizer is None or AutoModel is None:
-            return False
-        _ = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
-        _ = AutoModel.from_pretrained(model_name, local_files_only=True)
-        return True
-    except Exception:
-        return False
-
-def render_model_loader_sidebar():
-    """Render multilingual model loader with install button and progress."""
-    with st.sidebar.expander("🧩 Multilingual Model", expanded=False):
-        model_name = "intfloat/multilingual-e5-base"
-        if 'model_installed' not in st.session_state:
-            st.session_state.model_installed = _is_model_installed(model_name)
-
-        st.write(f"Model: `{model_name}`")
-
-        if st.session_state.model_installed:
-            st.success("✅ Model installed")
-            st.button("Install Model", disabled=True)
-            return
-
-        install_clicked = st.button("⬇️ Install Model", disabled=False)
-        if install_clicked:
-            progress = st.progress(0)
-            status = st.empty()
-            try:
-                # Coarse-grained progress; actual download progress is handled by transformers
-                status.text("Preparing download...")
-                progress.progress(10)
-                if AutoTokenizer is None or AutoModel is None:
-                    raise RuntimeError("Transformers not available")
-                # Download tokenizer and model
-                _ = AutoTokenizer.from_pretrained(model_name)
-                progress.progress(70)
-                status.text("Downloading model weights...")
-                _ = AutoModel.from_pretrained(model_name)
-                progress.progress(100)
-                st.session_state.model_installed = True
-                status.text("")
-                st.success("✅ Model installed successfully")
-            except Exception as e:
-                status.text("")
-                st.error(f"Model install failed: {e}")
+def render_model_info_sidebar():
+    """Render model information sidebar."""
+    with st.sidebar.expander("🧩 Model Information", expanded=False):
+        st.write("**Embedding Model:** `intfloat/multilingual-e5-base`")
+        st.write("**LLM Model:** `gpt-5-mini`")
+        st.write("**Provider:** OpenAI")
+        st.info("Models are automatically loaded when needed.")
 
 def process_uploaded_pdf(uploaded_file, rag_pipeline: RAGPipeline) -> bool:
     """
@@ -883,24 +827,24 @@ def render_about_panel():
 def main():
     """Main Streamlit application."""
     
-    # Hugging Face API Key Input
+    # OpenAI API Key Input
     st.sidebar.header("🔑 API Configuration")
-    hf_token = st.sidebar.text_input(
-        "Hugging Face API Token",
+    openai_key = st.sidebar.text_input(
+        "OpenAI API Key",
         type="password",
-        help="Enter your Hugging Face API token to use the LLM service",
-        value=st.session_state.get('hf_token', '')
+        help="Enter your OpenAI API key to use the GPT-5-mini model",
+        value=st.session_state.get('openai_key', '')
     )
     
-    if hf_token:
-        st.session_state.hf_token = hf_token
-        st.sidebar.success("✅ API Token configured")
+    if openai_key:
+        st.session_state.openai_key = openai_key
+        st.sidebar.success("✅ API Key configured")
     else:
-        st.sidebar.warning("⚠️ Please enter your Hugging Face API token")
+        st.sidebar.warning("⚠️ Please enter your OpenAI API key")
         st.sidebar.markdown("""
-        **How to get your API token:**
-        1. Go to [Hugging Face](https://huggingface.co/settings/tokens)
-        2. Create a new token
+        **How to get your API key:**
+        1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
+        2. Create a new API key
         3. Copy and paste it here
         """)
     
@@ -993,12 +937,12 @@ def main():
         
         st.divider()
 
-        # Multilingual model loader controls
-        render_model_loader_sidebar()
+        # Model information
+        render_model_info_sidebar()
 
         if st.button("🚪 Logout", type="secondary", use_container_width=True):
             for key in [
-                'hf_token', 'hf_token_validated', 'current_hf_token', 'rag_pipeline',
+                'openai_key', 'openai_key_validated', 'current_openai_key', 'rag_pipeline',
                 'llm_service', 'pdf_processed', 'current_pdf', 'total_chunks',
                 'chat_history', 'example_questions', 'processed_pdf_select'
             ]:
@@ -1300,7 +1244,7 @@ def main():
         f"""
         <div style='text-align: center; color: #666; font-size: 0.8em; padding: 1rem;'>
         <strong>Academic RAG Assistant</strong><br>
-        Powered by Llama 3.1 & Multilingual E5 | Built with Streamlit<br>
+        Powered by GPT-5-mini & Multilingual E5 | Built with Streamlit<br>
         <small>Optimized for German academic documents | Developed by Hasan Kırtaş</small>
         </div>
         """, 
