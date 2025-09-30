@@ -13,6 +13,7 @@ from src.implementations.embedding.query_embedding import QueryEmbeddingService
 from src.implementations.vector_db.vector_database_service import VectorDatabaseService
 from src.rag.retriever import Retriever
 from src.utils.logger import setup_logger
+from src.utils.performance_monitor import get_performance_monitor
 
 logger = setup_logger(__name__)
 
@@ -26,6 +27,7 @@ class RAGPipeline:
         try:
             self.embedding_service = QueryEmbeddingService()
             self.vector_db_service = VectorDatabaseService()
+            self.performance_monitor = get_performance_monitor()
 
             self.retriever = Retriever(
                 vector_db_service=self.vector_db_service,
@@ -41,7 +43,7 @@ class RAGPipeline:
 
     def query(self, query_text: str, k: int = 5) -> Dict:
         """
-        Perform a RAG query to find relevant contexts.
+        Perform a RAG query to find relevant contexts with performance monitoring.
 
         Args:
             query_text: The query text
@@ -50,35 +52,36 @@ class RAGPipeline:
         Returns:
             Dict containing the aggregated answer and individual contexts with metadata and scores
         """
-        try:
-            logger.info(f"Processing query: {query_text}")
+        with self.performance_monitor.time_operation("rag_query", query_length=len(query_text), k=k):
+            try:
+                logger.info(f"Processing query: {query_text}")
 
-            # Use retriever's built-in embedding generation
-            # (retriever will call embedding_service internally)
-            contexts = self.retriever.get_relevant_contexts(
-                query_text=query_text,
-                query_embedding=None,  # retriever generate it
-                k=k
-            )
+                # Use retriever's built-in embedding generation
+                # (retriever will call embedding_service internally)
+                contexts = self.retriever.get_relevant_contexts(
+                    query_text=query_text,
+                    query_embedding=None,  # retriever generate it
+                    k=k
+                )
 
-            # Aggregate answer text from retrieved contexts
-            answer_text = " ".join([ctx.get("context", "") for ctx in contexts])
+                # Aggregate answer text from retrieved contexts
+                answer_text = " ".join([ctx.get("context", "") for ctx in contexts])
 
-            logger.info(f"Retrieved {len(contexts)} contexts")
+                logger.info(f"Retrieved {len(contexts)} contexts")
 
-            return {
-                "success": True,
-                "answer": answer_text,
-                "contexts": contexts
-            }
+                return {
+                    "success": True,
+                    "answer": answer_text,
+                    "contexts": contexts
+                }
 
-        except Exception as e:
-            logger.error(f"Error in RAG query: {str(e)}")
-            return {
-                "success": False,
-                "answer": "",
-                "contexts": []
-            }
+            except Exception as e:
+                logger.error(f"Error in RAG query: {str(e)}")
+                return {
+                    "success": False,
+                    "answer": "",
+                    "contexts": []
+                }
     
     def query_with_custom_embedding(self, query_text: str, query_embedding: List[float], k: int = 5):
         """

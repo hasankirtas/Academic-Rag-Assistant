@@ -8,13 +8,41 @@ from typing import List, Dict, Any, Optional, Generator
 import time
 import logging
 import os
+import sys
+import unicodedata
 from openai import OpenAI
 import src.utils.config_parser as config_module
 
 from src.utils.logger import setup_logger
 from src.utils.config_parser import CONFIG
+from src.utils.response_cache import get_response_cache
 
 logger = setup_logger(__name__)
+
+
+# Ensure UTF-8 runtime to avoid ASCII codec errors in some Windows environments
+try:
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    os.environ.setdefault("LANG", "en_US.UTF-8")
+    os.environ.setdefault("LC_ALL", "en_US.UTF-8")
+    # Disable Chroma telemetry to avoid telemetry exceptions in some installs
+    os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+
+def _ensure_utf8(text: str) -> str:
+    """Normalize and ensure a safe UTF-8 encodable string."""
+    if not isinstance(text, str):
+        text = str(text)
+    # NFC normalization helps with composed characters
+    normalized = unicodedata.normalize("NFC", text)
+    # Round-trip encode/decode to guarantee utf-8 safety without raising
+    return normalized.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
 
 
 class LLMService:
@@ -44,12 +72,12 @@ class LLMService:
 
         # Initialize OpenAI client
         self.client = OpenAI(api_key=api_token)
+        self.cache = get_response_cache()
         logger.info(f"Initialized OpenAI LLM service with {self.model_name}")
 
     def _build_prompt(self, query: str, contexts: List[Dict]) -> str:
         """
-        Build a professional instruction prompt for German academic content,
-        integrating persona, instructions, context, and language handling.
+        Build a concise instruction prompt for German academic content.
         
         Args:
             query: User query
@@ -59,118 +87,32 @@ class LLMService:
             Formatted instruction prompt string
         """
 
-        # 1. Prepare context string
+        # 1. Prepare context string (limit to top 5 most relevant)
         context_str = ""
         if contexts:
-            # Limit total context to top 10 most relevant
-            sorted_contexts = sorted(contexts, key=lambda x: x.get('hybrid_score', 0), reverse=True)[:10]
+            sorted_contexts = sorted(contexts, key=lambda x: x.get('hybrid_score', 0), reverse=True)[:5]
             for i, ctx in enumerate(sorted_contexts, 1):
-                text = ctx.get("text", "")[:2000]  # truncate very long texts
-                context_str += f"{i}. (Relevanz: {ctx.get('hybrid_score', 0):.3f})\n{text}\n\n"
+                text = ctx.get("text", "")[:1000]  # Shorter context chunks
+                context_str += f"{i}. {text}\n\n"
 
-        # 2. Professional instruction template
-        base_prompt = f"""
-            Persona:
+        # 2. Concise instruction template
+        base_prompt = f"""Du bist ein akademischer Assistent. Beantworte die Frage basierend auf den Dokumentenauszügen.
 
-            Du bist ein hochqualifizierter akademischer Assistent, spezialisiert auf deutsche akademische Inhalte. Du verstehst komplexe akademische Inhalte und kannst sie klar erklären.
+Kontext:
+{context_str if context_str else "Keine Dokumente verfügbar."}
 
-            Instruction:
+Regeln:
+- Antworte präzise und akademisch
+- Nutze nur die bereitgestellten Dokumente
+- Bei Türkisch: Antworte auf Türkisch mit deutschen Fachbegriffen
+- Bei Deutsch: Antworte auf Deutsch
+- Maximal 300 Wörter
 
-            Beantworte die folgende Frage präzise, basierend hauptsächlich auf den bereitgestellten Dokumentenauszügen. Stelle sicher, dass alle Informationen korrekt und gut begründet sind. Keine Annahmen außerhalb der Dokumente treffen.
+Frage: {query}
 
-            Context:
+Antwort:"""
 
-            Die folgenden Dokumentenauszüge stehen zur Verfügung. Sie enthalten relevante Definitionen, Beispiele, Formeln und Konzepte. Nutze diese Auszüge als Grundlage deiner Antwort.
-
-            {context_str if context_str else "Keine Dokumente verfügbar."}
-
-            Context Processing Rules:
-
-            - Falls der bereitgestellte Kontext sehr umfangreich ist (>2000 Wörter), priorisiere die relevantesten 3-5 Abschnitte für die Antwort.
-            - Nutze Dokument-Referenzen: "[Quelle: Dokument X, Seite Y]" wenn verfügbar.
-            - Falls Informationen widersprüchlich sind, erwähne dies explizit: "Die Quellen zeigen unterschiedliche Ansätze..."
-
-           Format:
-
-            - Schreibe die Antwort flüssig und zusammenhängend.
-            - Nutze die bereitgestellten Dokumentenauszüge als Referenz.
-            - Füge nur bei Bedarf kurze Beispiele oder Erklärungen ein, ohne feste "Definition–Erklärung–Beispiel" Struktur.
-            - Nummerierte Absätze nur, wenn es zur Klarheit beiträgt.
-
-            Citation Requirements:
-
-            - Direkte Fakten: Immer mit Dokumenten-Referenz versehen
-            - Beispiele: Als solche markieren und unterscheiden von faktischen Inhalten
-            - Formeln: Mit Quelle angeben, falls aus Dokumenten stammend
-            - Eigene Erklärungen: Klar als "ergänzende Erklärung" kennzeichnen
-
-            Response Length Guidelines:
-
-            - Standard-Fragen: Maximum 250 Wörter
-            - Komplexe Themen: Maximum 400 Wörter
-            - Falls eine Frage sehr breit ist, fokussiere auf die wichtigsten 3 Kernpunkte
-            - Nutze prägnante Sätze und vermeide Wiederholungen
-
-            Audience:
-
-            Die Antwort richtet sich an Studierende im ersten oder zweiten Semester eines Universitätsstudiums, die die Konzepte verstehen sollen.
-
-            Tone:
-
-            Formell, akademisch, klar und präzise, aber leicht verständlich für Studierende.
-
-            Language Handling:
-
-            - Detectiere die Sprache der Benutzerfrage automatisch.
-            - Wenn die Benutzerfrage auf Türkisch gestellt wird, antworte auf Türkisch.
-            - Wenn die Benutzerfrage auf Deutsch gestellt wird, antworte auf Deutsch.
-            - Akademische Begriffe (Fachtermini) auf Deutsch belassen. Bei Türkisch: beim ersten Auftreten **Türkische Übersetzung (Almanca)**, danach nur Deutsch.
-
-            Fallback Procedures:
-
-            - Falls deutsche Fachbegriffe unklar sind: Nutze alternative deutsche Begriffe oder kurze Definitionen
-            - Falls Dokument-Kontext unvollständig ist: "Diese Frage erfordert zusätzliche Fachliteratur für eine vollständige Antwort."
-            - Falls technische Formeln fehlen: "Für mathematische Details siehe entsprechende Fachliteratur."
-
-            Ethics & Safety:
-
-            - Keine Inhalte erstellen, die beleidigend, diskriminierend oder politisch extremistisch sind.
-            - Keine medizinischen, rechtlichen oder finanziellen Ratschläge geben, die riskant sein könnten.
-            - Keine Annahmen oder Spekulationen über nicht im Kontext enthaltene Informationen treffen.
-            - Keine persönlichen Daten verarbeiten oder weitergeben.
-            - Wenn die Frage außerhalb des akademischen Kontexts liegt, antworte neutral: "Ich kann diese Anfrage nicht beantworten."
-
-            Reliability & Enrichment:
-
-            - Die Antwort sollte **hauptsächlich** auf den bereitgestellten Dokumentenauszügen basieren.
-            - Du darfst nur kleine zusätzliche Erklärungen oder Beispiele hinzufügen, die die dokumentierten Informationen unterstützen.
-            - Spekulationen oder Annahmen außerhalb des Kontexts vermeiden.
-
-            Confidence Indicators:
-
-            - Bei sicheren, dokumentierten Informationen: Normale Antwort
-            - Bei teilweise belegten Informationen: "Basierend auf den verfügbaren Quellen..."
-            - Bei unsicheren Interpretationen: "Die Dokumente deuten darauf hin..."
-            - Falls Kontext unvollständig: "Für eine vollständige Antwort wären zusätzliche Informationen nötig."
-
-            """
-
-        tail = f"""
-            User Question:
-
-            {query}
-
-            Output Indicator:
-
-            Beantworte die Frage frei, klar und flüssig. 
-            Nutze die bereitgestellten Dokumentenauszüge als Grundlage.
-            Vermeide feste Templates wie Definition–Erklärung–Beispiel 
-            Füge bei Bedarf Beispiele oder kurze Erläuterungen ein. 
-            Befolge die Language Handling Regeln: Türkçe → cevap Türkçe mit akademischen Termen, Almanca → cevap Deutsch.
-            """
-
-        instruction_prompt = (base_prompt + tail)
-        return instruction_prompt.strip()
+        return base_prompt.strip()
 
     # Public wrapper to satisfy external callers that expect a build_prompt API
     def build_prompt(self, query: str, contexts: List[Dict]) -> str:
@@ -188,9 +130,11 @@ class LLMService:
             OpenAI API response or stream generator
         """
         try:
+            # Ensure UTF-8 safe payload
+            safe_prompt = _ensure_utf8(prompt)
             messages = [
-                {"role": "system", "content": "Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet. Beantworte Fragen basierend auf den bereitgestellten Dokumenten. Verwende eine formelle, akademische Sprache."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": _ensure_utf8("Du bist ein hilfreicher akademischer Assistent, der auf Deutsch antwortet. Beantworte Fragen basierend auf den bereitgestellten Dokumenten. Verwende eine formelle, akademische Sprache.")},
+                {"role": "user", "content": safe_prompt}
             ]
             
             # GPT-5-mini only supports temperature=1 (default)
@@ -213,7 +157,7 @@ class LLMService:
 
     def generate_response(self, query: str, contexts: List[Dict] = None) -> Dict[str, Any]:
         """
-        Generate a complete response for the given query and contexts.
+        Generate a complete response for the given query and contexts with caching.
         
         Args:
             query: User query
@@ -222,8 +166,17 @@ class LLMService:
         Returns:
             Dictionary containing answer, metadata, and timing information
         """
+        contexts = contexts or []
+        
+        # Check cache first
+        cached_response = self.cache.get(query, contexts, self.model_name)
+        if cached_response is not None:
+            logger.debug(f"Cache hit for query: {query[:50]}...")
+            return cached_response
+        
         start = time.time()
-        prompt = self._build_prompt(query, contexts or [])
+        prompt = self._build_prompt(query, contexts)
+        prompt = _ensure_utf8(prompt)
         
         try:
             response = self._call_openai_api(prompt, stream=False)
@@ -234,13 +187,20 @@ class LLMService:
         
         elapsed = (time.time() - start) * 1000
 
-        return {
+        result = {
             "answer": answer,
             "prompt": prompt,
             "generation_time_ms": elapsed,
             "model_name": self.model_name,
-            "contexts_used": len(contexts) if contexts else 0,
+            "contexts_used": len(contexts),
+            "cached": False
         }
+        
+        # Cache the result
+        self.cache.put(query, contexts, self.model_name, result)
+        logger.debug(f"Cached response for query: {query[:50]}...")
+        
+        return result
 
     def stream_response(self, query: str, contexts: List[Dict] = None) -> Generator[str, None, None]:
         """
@@ -259,7 +219,7 @@ class LLMService:
             stream = self._call_openai_api(prompt, stream=True)
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
-                    yield chunk.choices[0].delta.content
+                    yield _ensure_utf8(chunk.choices[0].delta.content)
         except Exception as e:
             logger.error(f"Error streaming response: {str(e)}")
             yield "Entschuldigung, es gab einen Fehler bei der Antwortgenerierung."

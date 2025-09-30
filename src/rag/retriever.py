@@ -84,8 +84,8 @@ class Retriever:
             if query_embedding is None:
                 query_embedding = self.query_embedding_service.embed_text(query_text)
 
-            # Fetch vector similarity candidates
-            vector_candidates = k * 3
+            # Fetch vector similarity candidates (reduced for better performance)
+            vector_candidates = min(k * 2, 15)  # Limit to max 15 candidates
             vector_results = self.vector_db.search_by_embedding(
                 query_embedding=query_embedding,
                 top_k=vector_candidates

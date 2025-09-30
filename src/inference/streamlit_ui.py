@@ -650,7 +650,7 @@ def display_chat_interface():
                 start_time = time.time()
                 contexts = []
                 if use_rag:
-                    rag_result = rag_pipeline.query(prompt, k=10)
+                    rag_result = rag_pipeline.query(prompt, k=5)  # Reduced from 10 to 5
                     contexts = rag_result.get('contexts', []) if rag_result.get('success', False) else []
 
                 # Adapt contexts to LLM format
@@ -1183,7 +1183,7 @@ def main():
             # Generate response using RAG for retrieval and LLM for answer
             try:
                 start_time = time.time()
-                rag_result = rag_pipeline.query(prompt, k=10)
+                rag_result = rag_pipeline.query(prompt, k=5)  # Reduced from 10 to 5
                 contexts = rag_result.get('contexts', []) if rag_result.get('success', False) else []
                 llm_contexts = [
                     {

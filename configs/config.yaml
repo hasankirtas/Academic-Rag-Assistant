@@ -120,6 +120,10 @@ performance:
   max_workers: 4
   cache_embeddings: true
   cache_directory: "./cache/embeddings"
+  response_cache: true
+  response_cache_directory: "./cache/responses"
+  max_contexts: 5  # Reduced from default 10
+  max_context_length: 1000  # Reduced context chunk length
   
 # Testing Configuration
 testing:

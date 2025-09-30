@@ -5,6 +5,7 @@ import logging
 
 from src.utils.logger import setup_logger
 from src.utils.config_parser import CONFIG
+from src.utils.embedding_cache import get_embedding_cache
 
 logger = setup_logger(__name__)
 
@@ -35,6 +36,7 @@ class QueryEmbeddingService:
 
         self.model_name = model_name
         self.device = device
+        self.cache = get_embedding_cache()
 
         logger.info(f"Loading query embedding model: {model_name} on {device}")
         try:
@@ -46,7 +48,7 @@ class QueryEmbeddingService:
 
     def embed_text(self, text: str) -> List[float]:
         """
-        Convert a single user query to an embedding vector.
+        Convert a single user query to an embedding vector with caching.
 
         Args:
             text: Query string
@@ -58,9 +60,22 @@ class QueryEmbeddingService:
             logger.warning("Empty query provided for embedding")
             return []
 
+        # Check cache first
+        cached_embedding = self.cache.get(text, self.model_name)
+        if cached_embedding is not None:
+            logger.debug(f"Cache hit for query: {text[:50]}...")
+            return cached_embedding
+
         try:
+            # Generate embedding
             embedding = self.model.encode(text, convert_to_numpy=True)
-            return embedding.tolist()
+            embedding_list = embedding.tolist()
+            
+            # Cache the result
+            self.cache.put(text, self.model_name, embedding_list)
+            logger.debug(f"Cached embedding for query: {text[:50]}...")
+            
+            return embedding_list
         except Exception as e:
             logger.error(f"Error embedding query: {str(e)}")
             return []
